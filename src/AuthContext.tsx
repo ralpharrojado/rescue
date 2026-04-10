@@ -2,6 +2,8 @@ import React, { createContext, useContext, useEffect, useState } from 'react';
 import { 
   onAuthStateChanged, 
   signInWithPopup, 
+  signInWithRedirect,
+  getRedirectResult,
   GoogleAuthProvider, 
   signOut, 
   User as FirebaseUser 
@@ -56,6 +58,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     let unsubProfile: (() => void) | null = null;
+
+    // Handle redirect result for mobile sign-in
+    getRedirectResult(auth).catch((error) => {
+      console.error("Redirect sign-in error:", error);
+      if (error.code === 'auth/unauthorized-domain') {
+        alert("This domain is not authorized in Firebase. Please add your Vercel URL to 'Authorized Domains' in the Firebase Console.");
+      }
+    });
 
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       setUser(user);
@@ -129,14 +139,34 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const signIn = async () => {
     const provider = new GoogleAuthProvider();
+    
+    // Check if user is on mobile
+    const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+
     try {
-      await signInWithPopup(auth, provider);
+      if (isMobile) {
+        // Use redirect on mobile to avoid popup issues
+        await signInWithRedirect(auth, provider);
+      } else {
+        // Use popup on desktop
+        await signInWithPopup(auth, provider);
+      }
     } catch (error: any) {
       if (error.code === 'auth/cancelled-popup-request' || error.code === 'auth/popup-closed-by-user') {
-        // User closed the popup or a new one was opened, ignore
         return;
       }
+      
       console.error("Sign in error:", error);
+      
+      // Provide user-friendly error messages
+      let message = "Failed to sign in. Please try again.";
+      if (error.code === 'auth/unauthorized-domain') {
+        message = "This domain is not authorized in Firebase. Please add your Vercel URL to 'Authorized Domains' in the Firebase Console.";
+      } else if (error.code === 'auth/popup-blocked') {
+        message = "Sign-in popup was blocked by your browser. Please allow popups for this site.";
+      }
+      
+      alert(message);
     }
   };
 
