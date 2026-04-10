@@ -11,7 +11,9 @@ service cloud.firestore {
 
     function isAdmin() {
       return isAuthenticated() && 
-             ((request.auth.token.email == "joseralpharrojado789@gmail.com" || request.auth.token.email == "joseralpharrojado909@gmail.com") && request.auth.token.email_verified == true);
+             (request.auth.token.email.lower() == "joseralpharrojado789@gmail.com" || 
+              request.auth.token.email.lower() == "joseralpharrojado909@gmail.com") && 
+             request.auth.token.email_verified == true;
     }
 
     function isSystemAdmin() {
@@ -24,8 +26,8 @@ service cloud.firestore {
     }
 
     function isVerifiedMechanic() {
-      let userDoc = get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
-      return isMechanic() && (userDoc.isVerified == true || isAdmin());
+      let userData = get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+      return isMechanic() && (userData.get('isVerified', false) == true || isAdmin());
     }
 
     function isValidRescue(data) {
@@ -35,15 +37,13 @@ service cloud.firestore {
              data.location.lat is number &&
              data.location.lng is number &&
              data.issue is string &&
-             (!('issueCategory' in data) || data.issueCategory in ['Engine', 'Battery', 'Tire', 'Fuel', 'Lockout', 'Other']) &&
-             (!('rating' in data) || (data.rating is number && data.rating >= 1 && data.rating <= 5)) &&
-             (!('review' in data) || (data.review is string && data.review.size() <= 500)) &&
-             (!('cancellationReason' in data) || (data.cancellationReason is string && data.cancellationReason.size() <= 500));
+             (!('issueCategory' in data) || data.issueCategory in ['Engine', 'Battery', 'Tire', 'Fuel', 'Lockout', 'Other']);
     }
 
     function isRecentRequest() {
       // Rate limit: 5 minutes between requests (Admins bypass)
-      let lastRequest = get(/databases/$(database)/documents/users/$(request.auth.uid)).data.lastRequestAt;
+      let userData = get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+      let lastRequest = userData.get('lastRequestAt', null);
       return isAdmin() || lastRequest == null || request.time > lastRequest + duration.value(5, 'm');
     }
 
@@ -51,14 +51,18 @@ service cloud.firestore {
       allow read: if isAuthenticated();
       allow create: if isOwner(userId) && 
                       request.resource.data.role in ['customer', 'mechanic'] &&
-                      (isAdmin() || !('isVerified' in request.resource.data));
+                      (isAdmin() || 
+                       !('isVerified' in request.resource.data) || 
+                       request.resource.data.isVerified == false);
       allow update: if isAdmin() || (
         isOwner(userId) && 
         request.resource.data.role == resource.data.role &&
-        (!('isVerified' in request.resource.data) || request.resource.data.isVerified == resource.data.isVerified) &&
+        (request.resource.data.get('isVerified', false) == resource.data.get('isVerified', false)) &&
         (!('application' in request.resource.data) || (
           resource.data.role == 'mechanic' && 
-          (!('status' in request.resource.data.application) || request.resource.data.application.status == resource.data.application.status || isAdmin())
+          (!('status' in request.resource.data.application) || 
+           !('application' in resource.data) || 
+           request.resource.data.application.status == resource.data.application.status)
         ))
       );
     }

@@ -83,20 +83,30 @@ export default function CustomerDashboard() {
     const q = query(
       collection(db, 'rescues'),
       where('customerId', '==', user.uid),
-      where('status', 'in', ['pending', 'accepted', 'in-progress', 'completed']),
-      orderBy('createdAt', 'desc')
+      where('status', 'in', ['pending', 'accepted', 'in-progress', 'completed'])
     );
 
     const unsubscribe = onSnapshot(q, (snapshot) => {
+      console.log("Rescue snapshot received, count:", snapshot.size);
       if (!snapshot.empty) {
-        const docData = snapshot.docs[0].data();
+        // Sort by createdAt desc in memory to handle null timestamps during sync
+        const docs = snapshot.docs.map(d => ({ id: d.id, ...d.data() })) as any[];
+        docs.sort((a, b) => {
+          const timeA = a.createdAt?.toMillis() || Date.now();
+          const timeB = b.createdAt?.toMillis() || Date.now();
+          return timeB - timeA;
+        });
+
+        const docData = docs[0];
+        console.log("Active rescue data:", { id: docData.id, status: docData.status });
         // Only set as active if it's not completed OR if it's completed but not yet rated
         if (docData.status !== 'completed' || !docData.rating) {
-          setActiveRescue({ id: snapshot.docs[0].id, ...docData });
+          setActiveRescue(docData);
         } else {
           setActiveRescue(null);
         }
       } else {
+        console.log("No active rescues found for user");
         setActiveRescue(null);
       }
     }, (error) => {
@@ -178,8 +188,9 @@ export default function CustomerDashboard() {
         batch.set(rescueRef, rescueData);
         batch.update(userRef, { lastRequestAt: serverTimestamp() });
 
+        console.log("Committing batch for rescue:", rescueRef.id);
         await batch.commit();
-        console.log("Rescue request submitted with ID:", rescueRef.id);
+        console.log("Rescue request successfully committed.");
         setIsRequesting(false);
       };
 

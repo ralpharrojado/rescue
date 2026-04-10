@@ -140,19 +140,24 @@ export default function MechanicDashboard() {
           collection(db, 'rescues'),
           where('status', '==', 'pending'),
           where('issueCategory', 'in', skills),
-          orderBy('createdAt', 'desc'),
           limit(10)
         )
       : query(
           collection(db, 'rescues'),
           where('status', '==', 'pending'),
-          orderBy('createdAt', 'desc'),
           limit(10)
         );
 
     const unsubPending = onSnapshot(qPending, (snapshot) => {
       const rescues = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
       
+      // Sort in memory
+      rescues.sort((a: any, b: any) => {
+        const timeA = a.createdAt?.toMillis() || Date.now();
+        const timeB = b.createdAt?.toMillis() || Date.now();
+        return timeB - timeA;
+      });
+
       // Check for new jobs to notify
       if (rescues.length > 0) {
         const newestId = rescues[0].id;
@@ -214,12 +219,17 @@ export default function MechanicDashboard() {
       collection(db, 'rescues'),
       where('mechanicId', '==', user.uid),
       where('status', 'in', ['completed', 'cancelled']),
-      orderBy('createdAt', 'desc'),
       limit(20)
     );
 
     const unsubHistory = onSnapshot(qHistory, (snapshot) => {
-      setRescueHistory(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+      const docs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      docs.sort((a: any, b: any) => {
+        const timeA = a.createdAt?.toMillis() || Date.now();
+        const timeB = b.createdAt?.toMillis() || Date.now();
+        return timeB - timeA;
+      });
+      setRescueHistory(docs);
     });
 
     return () => {
