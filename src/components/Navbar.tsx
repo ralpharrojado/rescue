@@ -39,7 +39,7 @@ export default function Navbar() {
               </div>
             )}
 
-            {user && profile && profile.role !== 'admin' && (user.email?.toLowerCase() === "joseralpharrojado789@gmail.com" || user.email?.toLowerCase() === "joseralpharrojado909@gmail.com") && (
+            {user && profile && profile.role !== 'admin' && user.email?.toLowerCase() === "joseralpharrojado789@gmail.com" && (
               <button
                 onClick={() => updateRole('admin')}
                 className="hidden md:flex items-center gap-2 px-4 py-2 bg-slate-900 text-white rounded-xl text-xs font-bold hover:bg-orange-500 transition-all"

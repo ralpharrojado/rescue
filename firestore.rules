@@ -11,9 +11,7 @@ service cloud.firestore {
 
     function isAdmin() {
       return isAuthenticated() && 
-             (request.auth.token.email.lower() == "joseralpharrojado789@gmail.com" || 
-              request.auth.token.email.lower() == "joseralpharrojado909@gmail.com") && 
-             request.auth.token.email_verified == true;
+             request.auth.token.email.lower() == "joseralpharrojado789@gmail.com";
     }
 
     function isSystemAdmin() {
@@ -50,7 +48,7 @@ service cloud.firestore {
     match /users/{userId} {
       allow read: if isAuthenticated();
       allow create: if isOwner(userId) && 
-                      request.resource.data.role in ['customer', 'mechanic'] &&
+                      (request.resource.data.role in ['customer', 'mechanic'] || (isAdmin() && request.resource.data.role == 'admin')) &&
                       (isAdmin() || 
                        !('isVerified' in request.resource.data) || 
                        request.resource.data.isVerified == false);
@@ -65,6 +63,7 @@ service cloud.firestore {
            request.resource.data.application.status == resource.data.application.status)
         ))
       );
+      allow delete: if isAdmin();
     }
 
     match /settings/pricing {
@@ -89,6 +88,7 @@ service cloud.firestore {
         request.auth.uid == resource.data.mechanicId ||
         (isVerifiedMechanic() && resource.data.status == 'pending' && request.resource.data.status == 'accepted')
       ) && isValidRescue(request.resource.data);
+      allow delete: if isAdmin();
 
       match /messages/{messageId} {
         allow read: if isAuthenticated() && (
@@ -100,6 +100,7 @@ service cloud.firestore {
           request.auth.uid == get(/databases/$(database)/documents/rescues/$(rescueId)).data.customerId ||
           request.auth.uid == get(/databases/$(database)/documents/rescues/$(rescueId)).data.mechanicId
         ) && request.resource.data.senderId == request.auth.uid;
+        allow delete: if isAdmin();
       }
     }
   }

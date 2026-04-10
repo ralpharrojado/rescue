@@ -86,7 +86,7 @@ export default function MechanicDashboard() {
 
   useEffect(() => {
     // Auto-verify admin for testing
-    const isAdmin = user?.email === "joseralpharrojado789@gmail.com" || user?.email === "joseralpharrojado909@gmail.com";
+    const isAdmin = user?.email === "joseralpharrojado789@gmail.com";
     if (isAdmin && profile && !profile.isVerified) {
       setDoc(doc(db, 'users', user.uid), { isVerified: true }, { merge: true })
         .catch(err => console.error("Auto-verify error:", err));
@@ -94,7 +94,7 @@ export default function MechanicDashboard() {
   }, [user, profile]);
 
   useEffect(() => {
-    const isAdmin = user?.email === "joseralpharrojado789@gmail.com" || user?.email === "joseralpharrojado909@gmail.com";
+    const isAdmin = user?.email === "joseralpharrojado789@gmail.com";
     if (!user || !profile?.isOnline || (!profile?.isVerified && !isAdmin)) {
       setLocationStatus('searching');
       return;
@@ -130,7 +130,7 @@ export default function MechanicDashboard() {
   }, [user, profile?.isOnline, profile?.isVerified]);
 
   useEffect(() => {
-    const isAdmin = user?.email === "joseralpharrojado789@gmail.com" || user?.email === "joseralpharrojado909@gmail.com";
+    const isAdmin = user?.email === "joseralpharrojado789@gmail.com";
     if (!user || !profile?.isOnline || (!profile?.isVerified && !isAdmin)) {
       setPendingRescues([]);
       return;
@@ -331,7 +331,7 @@ export default function MechanicDashboard() {
       alert("Please complete your profile information before accepting jobs.");
       return;
     }
-    const isAdmin = user.email === "joseralpharrojado789@gmail.com" || user.email === "joseralpharrojado909@gmail.com";
+    const isAdmin = user.email === "joseralpharrojado789@gmail.com";
     if (!profile.isVerified && !isAdmin) {
       alert("Your account is pending verification.");
       return;
@@ -413,7 +413,7 @@ export default function MechanicDashboard() {
   return (
     <div className="pt-20 pb-12 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto min-h-screen bg-slate-50">
       <AnimatePresence>
-        {(profile?.isVerified || user?.email === "joseralpharrojado789@gmail.com" || user?.email === "joseralpharrojado909@gmail.com") && showNewJobAlert && (
+        {(profile?.isVerified || user?.email === "joseralpharrojado789@gmail.com") && showNewJobAlert && (
           <motion.div
             initial={{ opacity: 0, y: -100, x: '-50%' }}
             animate={{ opacity: 1, y: 20, x: '-50%' }}
@@ -499,7 +499,7 @@ export default function MechanicDashboard() {
         )}
       </AnimatePresence>
 
-      {( !profile?.isVerified && user?.email !== "joseralpharrojado789@gmail.com" && user?.email !== "joseralpharrojado909@gmail.com") && (
+      {( !profile?.isVerified && user?.email !== "joseralpharrojado789@gmail.com") && (
         <div className="mb-12">
           {profile?.application?.status === 'pending' ? (
             <div className="p-8 bg-orange-50 border border-orange-100 rounded-[2rem] flex flex-col md:flex-row items-center gap-8">
@@ -659,7 +659,7 @@ export default function MechanicDashboard() {
 
       {/* Floating Chat Button */}
       <AnimatePresence>
-        {(profile?.isVerified || user?.email === "joseralpharrojado789@gmail.com" || user?.email === "joseralpharrojado909@gmail.com") && activeJob && (
+        {(profile?.isVerified || user?.email === "joseralpharrojado789@gmail.com") && activeJob && (
           <div className="fixed bottom-8 right-8 z-50 flex flex-col items-end gap-4">
             {showChat && (
               <motion.div
@@ -697,7 +697,7 @@ export default function MechanicDashboard() {
         )}
       </AnimatePresence>
 
-      {(profile?.isVerified || user?.email === "joseralpharrojado789@gmail.com" || user?.email === "joseralpharrojado909@gmail.com") && (
+      {(profile?.isVerified || user?.email === "joseralpharrojado789@gmail.com") && (
         <>
           {isIncompleteProfile && (
             <motion.div 

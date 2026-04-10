@@ -83,8 +83,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         unsubProfile = onSnapshot(profileRef, (docSnap) => {
           if (docSnap.exists()) {
             const data = docSnap.data() as UserProfile;
-            const isAdmin = user.email?.toLowerCase() === "joseralpharrojado789@gmail.com" || 
-                           user.email?.toLowerCase() === "joseralpharrojado909@gmail.com";
+            const isAdmin = user.email?.toLowerCase() === "joseralpharrojado789@gmail.com";
             
             console.log(`Auth: User ${user.email} is admin: ${isAdmin}, current role: ${data.role}`);
 
@@ -97,8 +96,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             setProfile(data);
           } else {
             // If no profile exists yet, check if it's an admin email
-            const isAdmin = user.email?.toLowerCase() === "joseralpharrojado789@gmail.com" || 
-                           user.email?.toLowerCase() === "joseralpharrojado909@gmail.com";
+            const isAdmin = user.email?.toLowerCase() === "joseralpharrojado789@gmail.com";
             
             if (isAdmin) {
               console.log(`Auth: Creating new admin profile for ${user.email}`);
@@ -193,7 +191,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     };
 
     // Auto-verify admin for testing
-    if (role === 'mechanic' && (user.email === "joseralpharrojado789@gmail.com" || user.email === "joseralpharrojado909@gmail.com")) {
+    if (role === 'mechanic' && user.email === "joseralpharrojado789@gmail.com") {
       updateData.isVerified = true;
     }
 

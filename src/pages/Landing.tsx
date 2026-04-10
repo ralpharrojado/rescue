@@ -46,7 +46,7 @@ export default function Landing() {
               <ArrowRight className="absolute bottom-6 right-6 w-5 h-5 text-slate-300 group-hover:text-green-500 transition-colors" />
             </button>
 
-            {(user.email?.toLowerCase() === "joseralpharrojado789@gmail.com" || user.email?.toLowerCase() === "joseralpharrojado909@gmail.com") && (
+            {user.email?.toLowerCase() === "joseralpharrojado789@gmail.com" && (
               <button
                 onClick={() => handleRoleSelect('admin')}
                 className="md:col-span-2 group relative p-6 bg-slate-900 border-2 border-slate-800 rounded-2xl hover:border-orange-500 hover:shadow-lg transition-all text-left"

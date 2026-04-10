@@ -29,6 +29,9 @@ import {
   updateDoc, 
   setDoc,
   getDoc,
+  getDocs,
+  deleteDoc,
+  writeBatch,
   where,
   orderBy,
   limit
@@ -76,7 +79,9 @@ export default function AdminDashboard() {
   const [pricing, setPricing] = useState<PricingSettings>({ baseFee: 150, perKmFee: 20 });
   const [loading, setLoading] = useState(true);
   const [isSavingPricing, setIsSavingPricing] = useState(false);
-  const [activeTab, setActiveTab] = useState<'overview' | 'mechanics' | 'applications' | 'pricing' | 'rescues'>('overview');
+  const [isClearing, setIsClearing] = useState(false);
+  const [showClearConfirm, setShowClearConfirm] = useState(false);
+  const [activeTab, setActiveTab] = useState<'overview' | 'mechanics' | 'applications' | 'pricing' | 'rescues' | 'maintenance'>('overview');
   const [selectedApp, setSelectedApp] = useState<UserProfile | null>(null);
 
   useEffect(() => {
@@ -151,6 +156,47 @@ export default function AdminDashboard() {
     }
   };
 
+  const clearDatabase = async () => {
+    setIsClearing(true);
+    try {
+      // 1. Delete all rescues
+      const rescuesSnap = await getDocs(collection(db, 'rescues'));
+      for (const rescueDoc of rescuesSnap.docs) {
+        // Delete messages subcollection
+        const messagesSnap = await getDocs(collection(db, 'rescues', rescueDoc.id, 'messages'));
+        // We can't batch too many deletes at once (limit 500), but for a small app it's fine.
+        // If it's large, we'd need multiple batches.
+        const msgBatch = writeBatch(db);
+        messagesSnap.forEach(msgDoc => msgBatch.delete(msgDoc.ref));
+        await msgBatch.commit();
+        
+        await deleteDoc(rescueDoc.ref);
+      }
+
+      // 2. Delete all non-admin users
+      const usersSnap = await getDocs(collection(db, 'users'));
+      const userBatch = writeBatch(db);
+      let count = 0;
+      usersSnap.forEach(userDoc => {
+        const userData = userDoc.data();
+        if (userData.role !== 'admin') {
+          userBatch.delete(userDoc.ref);
+          count++;
+        }
+      });
+      if (count > 0) await userBatch.commit();
+
+      setShowClearConfirm(false);
+      alert("Database cleared successfully (Admins preserved).");
+    } catch (error) {
+      console.error("Clear database error:", error);
+      handleFirestoreError(error, OperationType.WRITE, 'multiple-collections');
+      alert("Error clearing database. Check console for details.");
+    } finally {
+      setIsClearing(false);
+    }
+  };
+
   const stats = {
     totalUsers: users.length,
     totalMechanics: users.filter(u => u.role === 'mechanic').length,
@@ -178,7 +224,7 @@ export default function AdminDashboard() {
           <p className="text-slate-500">Manage mechanics, pricing, and system operations</p>
         </div>
         <div className="flex bg-white p-1 rounded-2xl shadow-sm border border-slate-100 overflow-x-auto no-scrollbar">
-          {(['overview', 'mechanics', 'applications', 'pricing', 'rescues'] as const).map((tab) => (
+          {(['overview', 'mechanics', 'applications', 'pricing', 'rescues', 'maintenance'] as const).map((tab) => (
             <button
               key={tab}
               onClick={() => setActiveTab(tab)}
@@ -679,6 +725,84 @@ export default function AdminDashboard() {
           </div>
         </div>
       )}
+
+      {activeTab === 'maintenance' && (
+        <div className="max-w-2xl mx-auto">
+          <div className="bg-white rounded-3xl shadow-sm border border-slate-100 p-8">
+            <div className="flex items-center gap-4 mb-8">
+              <div className="p-4 bg-red-100 text-red-600 rounded-2xl">
+                <AlertCircle className="w-8 h-8" />
+              </div>
+              <div>
+                <h2 className="text-2xl font-bold text-slate-900">System Maintenance</h2>
+                <p className="text-slate-500">Critical system operations and data management</p>
+              </div>
+            </div>
+
+            <div className="space-y-6">
+              <div className="p-6 bg-red-50 rounded-2xl border border-red-100">
+                <h3 className="text-lg font-bold text-red-900 mb-2">Clear Database</h3>
+                <p className="text-sm text-red-700 mb-6 leading-relaxed">
+                  This action will permanently delete all rescue requests, chat messages, and user accounts (except for administrators). 
+                  This is typically used for resetting the system for a new season or clearing test data.
+                </p>
+                <button 
+                  onClick={() => setShowClearConfirm(true)}
+                  className="px-6 py-3 bg-red-600 text-white rounded-xl font-bold hover:bg-red-700 transition-all shadow-lg shadow-red-200 flex items-center gap-2"
+                >
+                  <XCircle className="w-5 h-5" />
+                  Clear All Data
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Clear Confirmation Modal */}
+      <AnimatePresence>
+        {showClearConfirm && (
+          <div className="fixed inset-0 z-[110] flex items-center justify-center p-4">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => !isClearing && setShowClearConfirm(false)}
+              className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm"
+            />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.9, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.9, y: 20 }}
+              className="relative w-full max-w-md bg-white rounded-[2.5rem] shadow-2xl p-8 text-center"
+            >
+              <div className="w-20 h-20 bg-red-100 text-red-600 rounded-full flex items-center justify-center mx-auto mb-6">
+                <AlertCircle className="w-10 h-10" />
+              </div>
+              <h3 className="text-2xl font-bold text-slate-900 mb-2">Are you absolutely sure?</h3>
+              <p className="text-slate-500 mb-8">
+                This will delete all rescues and non-admin users. This action <span className="font-bold text-red-600 underline">cannot be undone</span>.
+              </p>
+              <div className="flex gap-4">
+                <button 
+                  onClick={() => setShowClearConfirm(false)}
+                  disabled={isClearing}
+                  className="flex-1 py-4 bg-slate-100 text-slate-600 rounded-2xl font-bold hover:bg-slate-200 transition-all disabled:opacity-50"
+                >
+                  Cancel
+                </button>
+                <button 
+                  onClick={clearDatabase}
+                  disabled={isClearing}
+                  className="flex-1 py-4 bg-red-600 text-white rounded-2xl font-bold hover:bg-red-700 transition-all shadow-lg shadow-red-200 flex items-center justify-center gap-2 disabled:opacity-50"
+                >
+                  {isClearing ? <Loader2 className="w-5 h-5 animate-spin" /> : 'Yes, Clear All'}
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
