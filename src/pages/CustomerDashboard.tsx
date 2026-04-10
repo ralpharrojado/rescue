@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../AuthContext';
 import { 
   collection, 
@@ -45,6 +45,8 @@ export default function CustomerDashboard() {
   const [showCancelModal, setShowCancelModal] = useState(false);
   const [cancelReason, setCancelReason] = useState('');
   const [showChat, setShowChat] = useState(false);
+  const [unreadCount, setUnreadCount] = useState(0);
+  const lastMessageId = useRef<string | null>(null);
   const [formData, setFormData] = useState({
     issue: '',
     issueCategory: 'Other',
@@ -147,6 +149,38 @@ export default function CustomerDashboard() {
 
     return () => unsubMechanic();
   }, [activeRescue?.mechanicId]);
+
+  useEffect(() => {
+    if (!activeRescue?.id) {
+      setUnreadCount(0);
+      lastMessageId.current = null;
+      return;
+    }
+
+    const q = query(
+      collection(db, 'rescues', activeRescue.id, 'messages'),
+      orderBy('createdAt', 'desc'),
+      limit(1)
+    );
+
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      if (snapshot.empty) return;
+      
+      const latestMsg = snapshot.docs[0];
+      const data = latestMsg.data();
+      
+      if (data.senderId !== user?.uid) {
+        if (showChat) {
+          setUnreadCount(0);
+        } else if (latestMsg.id !== lastMessageId.current) {
+          setUnreadCount(prev => prev + 1);
+        }
+      }
+      lastMessageId.current = latestMsg.id;
+    });
+
+    return () => unsubscribe();
+  }, [activeRescue?.id, showChat, user?.uid]);
 
   const handleRequest = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -378,10 +412,18 @@ export default function CustomerDashboard() {
               animate={{ scale: 1 }}
               whileHover={{ scale: 1.1 }}
               whileTap={{ scale: 0.9 }}
-              onClick={() => setShowChat(!showChat)}
-              className="w-16 h-16 bg-orange-500 text-white rounded-full shadow-2xl flex items-center justify-center hover:bg-orange-600 transition-all"
+              onClick={() => {
+                setShowChat(!showChat);
+                if (!showChat) setUnreadCount(0);
+              }}
+              className="w-16 h-16 bg-orange-500 text-white rounded-full shadow-2xl flex items-center justify-center hover:bg-orange-600 transition-all relative"
             >
               {showChat ? <X className="w-8 h-8" /> : <MessageSquare className="w-8 h-8" />}
+              {!showChat && unreadCount > 0 && (
+                <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[10px] font-bold w-6 h-6 rounded-full flex items-center justify-center border-2 border-white animate-bounce">
+                  {unreadCount}
+                </span>
+              )}
             </motion.button>
           </div>
         )}
@@ -465,10 +507,13 @@ export default function CustomerDashboard() {
                       </button>
                     )}
                     {activeRescue.status !== 'pending' && activeRescue.status !== 'completed' && activeRescue.status !== 'cancelled' && (
-                      <button className="px-6 py-3 bg-orange-500 text-white rounded-2xl font-bold hover:bg-orange-600 transition-all flex items-center gap-2 shadow-lg shadow-orange-200">
+                      <a 
+                        href={`tel:${activeRescue.mechanicPhone || ''}`}
+                        className="px-6 py-3 bg-orange-500 text-white rounded-2xl font-bold hover:bg-orange-600 transition-all flex items-center gap-2 shadow-lg shadow-orange-200"
+                      >
                         <Phone className="w-5 h-5" />
                         Call Mechanic
-                      </button>
+                      </a>
                     )}
                   </div>
                 </div>

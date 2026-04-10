@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../AuthContext';
 import { db, handleFirestoreError, OperationType } from '../firebase';
 import { 
@@ -56,6 +56,8 @@ export default function MechanicDashboard() {
   const [cancelReason, setCancelReason] = useState('');
   const [isCancelling, setIsCancelling] = useState(false);
   const [isSubmittingApp, setIsSubmittingApp] = useState(false);
+  const [unreadCount, setUnreadCount] = useState(0);
+  const lastMessageId = useRef<string | null>(null);
   const [appForm, setAppForm] = useState({
     fullName: profile?.displayName || '',
     birthday: '',
@@ -239,6 +241,38 @@ export default function MechanicDashboard() {
       unsubHistory();
     };
   }, [user, profile?.isOnline, profile?.isVerified, JSON.stringify(skills)]);
+
+  useEffect(() => {
+    if (!activeJob?.id) {
+      setUnreadCount(0);
+      lastMessageId.current = null;
+      return;
+    }
+
+    const q = query(
+      collection(db, 'rescues', activeJob.id, 'messages'),
+      orderBy('createdAt', 'desc'),
+      limit(1)
+    );
+
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      if (snapshot.empty) return;
+      
+      const latestMsg = snapshot.docs[0];
+      const data = latestMsg.data();
+      
+      if (data.senderId !== user?.uid) {
+        if (showChat) {
+          setUnreadCount(0);
+        } else if (latestMsg.id !== lastMessageId.current) {
+          setUnreadCount(prev => prev + 1);
+        }
+      }
+      lastMessageId.current = latestMsg.id;
+    });
+
+    return () => unsubscribe();
+  }, [activeJob?.id, showChat, user?.uid]);
 
   const toggleOnline = async () => {
     if (!user || !profile) return;
@@ -646,10 +680,18 @@ export default function MechanicDashboard() {
               animate={{ scale: 1 }}
               whileHover={{ scale: 1.1 }}
               whileTap={{ scale: 0.9 }}
-              onClick={() => setShowChat(!showChat)}
-              className="w-16 h-16 bg-orange-500 text-white rounded-full shadow-2xl flex items-center justify-center hover:bg-orange-600 transition-all"
+              onClick={() => {
+                setShowChat(!showChat);
+                if (!showChat) setUnreadCount(0);
+              }}
+              className="w-16 h-16 bg-orange-500 text-white rounded-full shadow-2xl flex items-center justify-center hover:bg-orange-600 transition-all relative"
             >
               {showChat ? <X className="w-8 h-8" /> : <MessageSquare className="w-8 h-8" />}
+              {!showChat && unreadCount > 0 && (
+                <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[10px] font-bold w-6 h-6 rounded-full flex items-center justify-center border-2 border-white animate-bounce">
+                  {unreadCount}
+                </span>
+              )}
             </motion.button>
           </div>
         )}
@@ -798,10 +840,13 @@ export default function MechanicDashboard() {
                       <X className="w-5 h-5" />
                       Cancel Job
                     </button>
-                    <button className="px-6 py-3 bg-slate-100 text-slate-600 rounded-2xl font-bold hover:bg-slate-200 transition-all flex items-center gap-2">
+                    <a 
+                      href={`tel:${activeJob.customerPhone || ''}`}
+                      className="px-6 py-3 bg-slate-100 text-slate-600 rounded-2xl font-bold hover:bg-slate-200 transition-all flex items-center gap-2"
+                    >
                       <Phone className="w-5 h-5" />
                       Contact Customer
-                    </button>
+                    </a>
                   </div>
                 </div>
 
