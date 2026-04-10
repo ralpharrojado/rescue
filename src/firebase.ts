@@ -1,5 +1,5 @@
 import { initializeApp } from 'firebase/app';
-import { getAuth } from 'firebase/auth';
+import { getAuth, setPersistence, indexedDBLocalPersistence } from 'firebase/auth';
 import { getFirestore, doc, getDocFromServer } from 'firebase/firestore';
 // Import the Firebase configuration
 // We use a fallback pattern to support both local development (JSON) 
@@ -30,6 +30,11 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 export const db = getFirestore(app, firestoreDatabaseId);
 export const auth = getAuth(app);
+
+// Set persistence to indexedDB for better Safari/iframe support
+setPersistence(auth, indexedDBLocalPersistence).catch((err) => {
+  console.error("Auth persistence error:", err);
+});
 
 export enum OperationType {
   CREATE = 'create',

@@ -138,17 +138,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const signIn = async () => {
     const provider = new GoogleAuthProvider();
     
-    // Check if user is on mobile
-    const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+    // Check if user is on Safari
+    const isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
+    const isIframe = window.self !== window.top;
 
     try {
-      if (isMobile) {
-        // Use redirect on mobile to avoid popup issues
-        await signInWithRedirect(auth, provider);
-      } else {
-        // Use popup on desktop
-        await signInWithPopup(auth, provider);
-      }
+      // Always prefer popup in this environment, especially in iframes
+      await signInWithPopup(auth, provider);
     } catch (error: any) {
       if (error.code === 'auth/cancelled-popup-request' || error.code === 'auth/popup-closed-by-user') {
         return;
@@ -156,15 +152,26 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       
       console.error("Sign in error:", error);
       
-      // Provide user-friendly error messages
-      let message = "Failed to sign in. Please try again.";
-      if (error.code === 'auth/unauthorized-domain') {
-        message = "This domain is not authorized in Firebase. Please add your Vercel URL to 'Authorized Domains' in the Firebase Console.";
-      } else if (error.code === 'auth/popup-blocked') {
-        message = "Sign-in popup was blocked by your browser. Please allow popups for this site.";
+      // If popup fails and we are in an iframe on Safari, it's likely ITP
+      if (isSafari && isIframe) {
+        alert("Safari's security settings may be blocking the login in this preview. If the login fails, please try opening the app in a new tab using the button in the top right.");
       }
-      
-      alert(message);
+
+      // Fallback to redirect only if popup is blocked or fails for other reasons
+      if (error.code === 'auth/popup-blocked') {
+        try {
+          await signInWithRedirect(auth, provider);
+        } catch (redirectError) {
+          console.error("Redirect fallback error:", redirectError);
+        }
+      } else {
+        // Provide user-friendly error messages
+        let message = "Failed to sign in. Please try again.";
+        if (error.code === 'auth/unauthorized-domain') {
+          message = "This domain is not authorized in Firebase. Please add your Vercel URL to 'Authorized Domains' in the Firebase Console.";
+        }
+        alert(message);
+      }
     }
   };
 

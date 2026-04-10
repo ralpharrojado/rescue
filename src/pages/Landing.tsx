@@ -113,6 +113,27 @@ export default function Landing() {
                     </span>
                   </div>
                 </div>
+
+                {/* Safari/Iframe Login Help */}
+                {/^((?!chrome|android).)*safari/i.test(navigator.userAgent) && window.self !== window.top && (
+                  <div className="mt-8 p-6 bg-orange-50 rounded-2xl border border-orange-100 max-w-md">
+                    <h4 className="text-sm font-bold text-orange-800 mb-2 flex items-center gap-2">
+                      <ShieldCheck className="w-4 h-4" />
+                      Safari Login Issues?
+                    </h4>
+                    <p className="text-xs text-orange-700 mb-4 leading-relaxed">
+                      Safari's security settings often block logins inside previews. 
+                      If you're having trouble logging in, please use the button below to open the app in a dedicated tab.
+                    </p>
+                    <button
+                      onClick={() => window.open(window.location.href, '_blank')}
+                      className="w-full py-2.5 bg-orange-500 text-white rounded-xl text-sm font-bold hover:bg-orange-600 transition-all shadow-md shadow-orange-100 flex items-center justify-center gap-2"
+                    >
+                      Open in New Tab & Login
+                      <ArrowRight className="w-4 h-4" />
+                    </button>
+                  </div>
+                )}
               </motion.div>
             </div>
             
