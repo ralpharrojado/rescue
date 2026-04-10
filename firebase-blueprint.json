@@ -1,0 +1,119 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "A user of the platform (Customer or Mechanic)",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "description": "Firebase Auth UID" },
+        "email": { "type": "string", "format": "email" },
+        "displayName": { "type": "string" },
+        "photoURL": { "type": "string", "format": "uri" },
+        "role": { "type": "string", "enum": ["customer", "mechanic", "admin"] },
+        "isOnline": { "type": "boolean", "description": "For mechanics: whether they are currently accepting jobs" },
+        "location": {
+          "type": "object",
+          "properties": {
+            "lat": { "type": "number" },
+            "lng": { "type": "number" }
+          }
+        },
+        "skills": { "type": "array", "items": { "type": "string" } },
+        "isVerified": { "type": "boolean", "description": "For mechanics: whether they are verified by admin" },
+        "application": {
+          "type": "object",
+          "properties": {
+            "fullName": { "type": "string" },
+            "birthday": { "type": "string", "format": "date" },
+            "idCardUrl": { "type": "string", "format": "uri" },
+            "facePhotoUrl": { "type": "string", "format": "uri" },
+            "submittedAt": { "type": "string", "format": "date-time" },
+            "status": { "type": "string", "enum": ["pending", "approved", "rejected"] }
+          }
+        },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["uid", "email", "role"]
+    },
+    "SystemSettings": {
+      "title": "SystemSettings",
+      "description": "Global application settings like pricing",
+      "type": "object",
+      "properties": {
+        "baseFee": { "type": "number", "description": "Base fee for any rescue" },
+        "perKmFee": { "type": "number", "description": "Fee per kilometer" },
+        "updatedAt": { "type": "string", "format": "date-time" },
+        "updatedBy": { "type": "string" }
+      }
+    },
+    "Rescue": {
+      "title": "Rescue",
+      "description": "A car rescue request",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "customerId": { "type": "string" },
+        "customerName": { "type": "string" },
+        "customerPhone": { "type": "string" },
+        "mechanicId": { "type": "string" },
+        "mechanicName": { "type": "string" },
+        "status": { "type": "string", "enum": ["pending", "accepted", "in-progress", "completed", "cancelled"] },
+        "location": {
+          "type": "object",
+          "properties": {
+            "lat": { "type": "number" },
+            "lng": { "type": "number" },
+            "address": { "type": "string" }
+          }
+        },
+        "carDetails": {
+          "type": "object",
+          "properties": {
+            "model": { "type": "string" },
+            "plate": { "type": "string" }
+          }
+        },
+        "issue": { "type": "string" },
+        "issueCategory": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "acceptedAt": { "type": "string", "format": "date-time" },
+        "completedAt": { "type": "string", "format": "date-time" },
+        "price": { "type": "number" },
+        "rating": { "type": "number", "description": "Rating from 1 to 5" },
+        "review": { "type": "string", "description": "Optional text review" },
+        "cancellationReason": { "type": "string", "description": "Reason for cancelling the rescue (max 500 chars)" }
+      },
+      "required": ["customerId", "status", "location", "issue"]
+    },
+    "Message": {
+      "title": "Message",
+      "description": "A chat message between customer and mechanic",
+      "type": "object",
+      "properties": {
+        "senderId": { "type": "string" },
+        "senderName": { "type": "string" },
+        "text": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["senderId", "text", "createdAt"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "User",
+      "description": "User profiles"
+    },
+    "/rescues/{rescueId}": {
+      "schema": "Rescue",
+      "description": "Rescue requests and their status"
+    },
+    "/rescues/{rescueId}/messages/{messageId}": {
+      "schema": "Message",
+      "description": "Chat messages for a specific rescue"
+    },
+    "/settings/pricing": {
+      "schema": "SystemSettings",
+      "description": "Global pricing configuration"
+    }
+  }
+}
