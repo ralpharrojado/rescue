@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import { MapContainer, TileLayer, Marker, Popup, Tooltip, useMap, useMapEvents } from 'react-leaflet';
+import { MapContainer, TileLayer, Marker, Popup, Tooltip, useMap, useMapEvents, Polyline } from 'react-leaflet';
 import L from 'leaflet';
 import { MapPin, Navigation, User, Wrench } from 'lucide-react';
 import { renderToStaticMarkup } from 'react-dom/server';
@@ -17,6 +17,7 @@ interface MapProps {
     label?: string;
     permanentLabel?: boolean;
   }>;
+  trace?: Array<{ lat: number; lng: number }>;
   onLocationSelect?: (lat: number, lng: number) => void;
   className?: string;
   zoom?: number;
@@ -90,7 +91,8 @@ export default function Map({
   markers = [], 
   onLocationSelect, 
   className = "",
-  zoom = 14
+  zoom = 14,
+  trace = []
 }: MapProps) {
   return (
     <div className={`relative rounded-2xl overflow-hidden border-2 border-slate-200 shadow-inner ${className}`}>
@@ -108,6 +110,16 @@ export default function Map({
         <MapEvents onLocationSelect={onLocationSelect} />
         <ChangeView center={center} zoom={zoom} shouldFit={markers.length > 1} />
         <FitBounds markers={markers} />
+
+        {trace.length > 1 && (
+          <Polyline 
+            positions={trace.map(p => [p.lat, p.lng] as [number, number])} 
+            color="#f97316" 
+            weight={4} 
+            opacity={0.6} 
+            dashArray="10, 10"
+          />
+        )}
 
         {markers.map((marker) => (
           <Marker 

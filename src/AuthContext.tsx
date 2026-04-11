@@ -24,6 +24,7 @@ export interface UserProfile {
   displayName: string;
   photoURL: string;
   role: UserRole;
+  phone?: string;
   isOnline?: boolean;
   location?: { lat: number; lng: number };
   skills?: string[];

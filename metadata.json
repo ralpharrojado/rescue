@@ -1,5 +1,5 @@
 {
   "name": "Roxas City Car Rescue",
   "description": "A real-time marketplace connecting stranded drivers with nearby mechanics in Roxas City using a first-to-accept dispatch system.",
-  "requestFramePermissions": ["geolocation"]
+  "requestFramePermissions": ["geolocation", "camera"]
 }

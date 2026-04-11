@@ -14,7 +14,7 @@ import {
   limit,
   writeBatch
 } from 'firebase/firestore';
-import { db, auth, handleFirestoreError, OperationType } from '../firebase';
+import { db, auth, handleFirestoreError, OperationType, updateMechanicRating } from '../firebase';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
   Car, 
@@ -47,6 +47,7 @@ export default function CustomerDashboard() {
   const [showChat, setShowChat] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
   const lastMessageId = useRef<string | null>(null);
+  const notificationSound = useRef(new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3'));
   const [formData, setFormData] = useState({
     issue: '',
     issueCategory: 'Other',
@@ -80,6 +81,21 @@ export default function CustomerDashboard() {
 
   useEffect(() => {
     if (!user) return;
+
+    // Automatically get current location on mount
+    if ('geolocation' in navigator) {
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          const { latitude, longitude } = position.coords;
+          setFormData(prev => ({
+            ...prev,
+            location: { ...prev.location, lat: latitude, lng: longitude }
+          }));
+        },
+        (error) => console.log("Initial geolocation error:", error),
+        { enableHighAccuracy: true }
+      );
+    }
 
     // Listen for active rescue
     const q = query(
@@ -174,6 +190,7 @@ export default function CustomerDashboard() {
           setUnreadCount(0);
         } else if (latestMsg.id !== lastMessageId.current) {
           setUnreadCount(prev => prev + 1);
+          notificationSound.current.play().catch(e => console.log("Audio play blocked:", e));
         }
       }
       lastMessageId.current = latestMsg.id;
@@ -316,6 +333,11 @@ export default function CustomerDashboard() {
         review,
         ratedAt: serverTimestamp()
       });
+      
+      // Update mechanic's average rating in their profile
+      if (activeRescue.mechanicId) {
+        await updateMechanicRating(activeRescue.mechanicId, rating);
+      }
     } catch (error) {
       console.error("Rating error:", error);
     } finally {
@@ -443,8 +465,9 @@ export default function CustomerDashboard() {
           <div className="bg-white rounded-3xl shadow-sm border border-slate-100 overflow-hidden h-[400px] lg:h-[600px] relative">
             <Map 
               className="w-full h-full"
-              center={activeRescue?.location || { lat: 11.5853, lng: 122.7511 }}
+              center={activeRescue?.location || formData.location}
               markers={markers}
+              trace={activeRescue?.trace || []}
               onLocationSelect={(lat, lng) => !activeRescue && setFormData(prev => ({ ...prev, location: { ...prev.location, lat, lng } }))}
               zoom={activeRescue ? 15 : 14}
             />
@@ -557,7 +580,14 @@ export default function CustomerDashboard() {
                         <img src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${activeRescue.mechanicId}`} alt="Mechanic" />
                       </div>
                       <div>
-                        <div className="text-sm font-bold text-slate-900">{activeRescue.mechanicName}</div>
+                        <div className="text-sm font-bold text-slate-900 flex items-center gap-2">
+                          {activeRescue.mechanicName}
+                          {assignedMechanicProfile?.averageRating && (
+                            <span className="flex items-center gap-1 text-[10px] bg-yellow-100 text-yellow-700 px-1.5 py-0.5 rounded-md">
+                              ★ {assignedMechanicProfile.averageRating}
+                            </span>
+                          )}
+                        </div>
                         <div className="text-[10px] text-slate-500 uppercase tracking-widest font-bold">Assigned Mechanic</div>
                       </div>
                     </div>

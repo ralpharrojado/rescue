@@ -1,6 +1,6 @@
 import { initializeApp } from 'firebase/app';
 import { getAuth, setPersistence, indexedDBLocalPersistence } from 'firebase/auth';
-import { getFirestore, doc, getDocFromServer } from 'firebase/firestore';
+import { getFirestore, doc, getDocFromServer, updateDoc, query, collection, where, getDocs } from 'firebase/firestore';
 // Import the Firebase configuration
 // We use a fallback pattern to support both local development (JSON) 
 // and production environments (Environment Variables)
@@ -85,6 +85,38 @@ export function handleFirestoreError(error: unknown, operationType: OperationTyp
   }
   console.error('Firestore Error: ', JSON.stringify(errInfo));
   throw new Error(JSON.stringify(errInfo));
+}
+
+export async function updateMechanicRating(mechanicId: string, newRating: number) {
+  try {
+    const mechanicRef = doc(db, 'users', mechanicId);
+    const q = query(
+      collection(db, 'rescues'),
+      where('mechanicId', '==', mechanicId),
+      where('status', '==', 'completed')
+    );
+    const snapshot = await getDocs(q);
+    
+    let totalRating = newRating;
+    let count = 1;
+    
+    snapshot.forEach(doc => {
+      const data = doc.data();
+      if (data.rating) {
+        totalRating += data.rating;
+        count++;
+      }
+    });
+    
+    const averageRating = totalRating / count;
+    
+    await updateDoc(mechanicRef, {
+      averageRating: Number(averageRating.toFixed(1)),
+      totalReviews: count
+    });
+  } catch (error) {
+    console.error("Error updating mechanic rating:", error);
+  }
 }
 
 // Validate Connection to Firestore

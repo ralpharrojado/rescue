@@ -58,9 +58,17 @@ export default function MechanicDashboard() {
   const [isSubmittingApp, setIsSubmittingApp] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
   const lastMessageId = useRef<string | null>(null);
+  const chatNotificationSound = useRef(new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3'));
+  
+  const idCardInputRef = useRef<HTMLInputElement>(null);
+  const idCardCameraRef = useRef<HTMLInputElement>(null);
+  const facePhotoInputRef = useRef<HTMLInputElement>(null);
+  const facePhotoCameraRef = useRef<HTMLInputElement>(null);
+
   const [appForm, setAppForm] = useState({
     fullName: profile?.displayName || '',
     birthday: '',
+    phone: profile?.phone || '',
     idCardUrl: '',
     facePhotoUrl: ''
   });
@@ -110,12 +118,32 @@ export default function MechanicDashboard() {
       (position) => {
         const { latitude, longitude } = position.coords;
         setLocationStatus('active');
+        
+        // Update mechanic profile location
         setDoc(doc(db, 'users', user.uid), {
           location: { lat: latitude, lng: longitude }
         }, { merge: true }).catch(err => {
           console.error("Update location error:", err);
           setLocationStatus('error');
         });
+
+        // If there's an active job, update the trace in the rescue document
+        if (activeJob && (activeJob.status === 'accepted' || activeJob.status === 'in-progress')) {
+          const currentTrace = activeJob.trace || [];
+          const lastPoint = currentTrace[currentTrace.length - 1];
+          
+          // Only add point if it's significantly different from the last one (e.g., > 10 meters)
+          const shouldAddPoint = !lastPoint || 
+            Math.abs(lastPoint.lat - latitude) > 0.0001 || 
+            Math.abs(lastPoint.lng - longitude) > 0.0001;
+
+          if (shouldAddPoint) {
+            const newPoint = { lat: latitude, lng: longitude, timestamp: Date.now() };
+            updateDoc(doc(db, 'rescues', activeJob.id), {
+              trace: [...currentTrace, newPoint].slice(-50) // Keep last 50 points for performance
+            }).catch(err => console.error("Trace update error:", err));
+          }
+        }
       },
       (error) => {
         console.error("Geolocation error:", error);
@@ -266,6 +294,7 @@ export default function MechanicDashboard() {
           setUnreadCount(0);
         } else if (latestMsg.id !== lastMessageId.current) {
           setUnreadCount(prev => prev + 1);
+          chatNotificationSound.current.play().catch(e => console.log("Audio play blocked:", e));
         }
       }
       lastMessageId.current = latestMsg.id;
@@ -301,6 +330,7 @@ export default function MechanicDashboard() {
     setIsSubmittingApp(true);
     try {
       await updateDoc(doc(db, 'users', user.uid), {
+        phone: appForm.phone,
         application: {
           ...appForm,
           submittedAt: serverTimestamp(),
@@ -315,14 +345,42 @@ export default function MechanicDashboard() {
     }
   };
 
-  const handleSimulatedUpload = (field: 'idCardUrl' | 'facePhotoUrl') => {
-    // In a real app, this would open a file picker and upload to Storage
-    // For this demo, we'll use high-quality placeholder images
-    const placeholders = {
-      idCardUrl: 'https://images.unsplash.com/photo-1554224155-169641357599?auto=format&fit=crop&q=80&w=800',
-      facePhotoUrl: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&q=80&w=800'
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>, field: 'idCardUrl' | 'facePhotoUrl') => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        const MAX_WIDTH = 800;
+        const MAX_HEIGHT = 800;
+        let width = img.width;
+        let height = img.height;
+
+        if (width > height) {
+          if (width > MAX_WIDTH) {
+            height *= MAX_WIDTH / width;
+            width = MAX_WIDTH;
+          }
+        } else {
+          if (height > MAX_HEIGHT) {
+            width *= MAX_HEIGHT / height;
+            height = MAX_HEIGHT;
+          }
+        }
+
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        ctx?.drawImage(img, 0, 0, width, height);
+        const dataUrl = canvas.toDataURL('image/jpeg', 0.7);
+        setAppForm(prev => ({ ...prev, [field]: dataUrl }));
+      };
+      img.src = event.target?.result as string;
     };
-    setAppForm(prev => ({ ...prev, [field]: placeholders[field] }));
+    reader.readAsDataURL(file);
   };
 
   const acceptJob = async (rescueId: string) => {
@@ -341,8 +399,10 @@ export default function MechanicDashboard() {
       await updateDoc(doc(db, 'rescues', rescueId), {
         mechanicId: user.uid,
         mechanicName: user.displayName || 'Mechanic',
+        mechanicPhone: profile.phone || '',
         status: 'accepted',
-        acceptedAt: serverTimestamp()
+        acceptedAt: serverTimestamp(),
+        trace: [] // Initialize trace
       });
     } catch (error: any) {
       console.error("Accept job error:", error);
@@ -565,6 +625,21 @@ export default function MechanicDashboard() {
                           />
                         </div>
                       </label>
+
+                      <label className="block">
+                        <span className="text-sm font-bold text-slate-700 mb-2 block">Phone Number</span>
+                        <div className="relative">
+                          <Phone className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
+                          <input 
+                            required
+                            type="tel"
+                            value={appForm.phone}
+                            onChange={e => setAppForm(prev => ({ ...prev, phone: e.target.value }))}
+                            placeholder="0912 345 6789"
+                            className="w-full pl-12 pr-4 py-4 bg-slate-50 border border-slate-100 rounded-2xl focus:ring-4 focus:ring-orange-500/10 focus:border-orange-500 outline-none transition-all font-medium"
+                          />
+                        </div>
+                      </label>
                     </div>
                   </div>
 
@@ -574,56 +649,102 @@ export default function MechanicDashboard() {
                     <div className="grid grid-cols-2 gap-4">
                       <div className="space-y-2">
                         <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Valid ID Card</span>
-                        <button 
-                          type="button"
-                          onClick={() => handleSimulatedUpload('idCardUrl')}
-                          className={`w-full aspect-video rounded-2xl border-2 border-dashed flex flex-col items-center justify-center gap-2 transition-all overflow-hidden relative group ${
-                            appForm.idCardUrl ? 'border-green-500 bg-green-50' : 'border-slate-200 bg-slate-50 hover:border-orange-500 hover:bg-orange-50'
-                          }`}
-                        >
+                        <input 
+                          type="file" 
+                          ref={idCardInputRef} 
+                          className="hidden" 
+                          accept="image/*" 
+                          onChange={(e) => handleFileChange(e, 'idCardUrl')} 
+                        />
+                        <input 
+                          type="file" 
+                          ref={idCardCameraRef} 
+                          className="hidden" 
+                          accept="image/*" 
+                          capture="environment" 
+                          onChange={(e) => handleFileChange(e, 'idCardUrl')} 
+                        />
+                        <div className={`w-full aspect-video rounded-2xl border-2 border-dashed flex flex-col items-center justify-center gap-2 transition-all overflow-hidden relative group ${
+                          appForm.idCardUrl ? 'border-green-500 bg-green-50' : 'border-slate-200 bg-slate-50'
+                        }`}>
                           {appForm.idCardUrl ? (
                             <>
                               <img src={appForm.idCardUrl} alt="ID" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
-                              <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
-                                <Upload className="w-6 h-6 text-white" />
+                              <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 flex flex-col items-center justify-center gap-2 transition-opacity">
+                                <button type="button" onClick={() => idCardInputRef.current?.click()} className="px-3 py-1.5 bg-white text-slate-900 rounded-lg text-[10px] font-bold flex items-center gap-2 hover:bg-slate-100">
+                                  <Upload className="w-3 h-3" /> Change
+                                </button>
+                                <button type="button" onClick={() => idCardCameraRef.current?.click()} className="px-3 py-1.5 bg-white text-slate-900 rounded-lg text-[10px] font-bold flex items-center gap-2 hover:bg-slate-100">
+                                  <Camera className="w-3 h-3" /> Retake
+                                </button>
                               </div>
                             </>
                           ) : (
-                            <>
-                              <Upload className="w-6 h-6 text-slate-400" />
-                              <span className="text-[10px] font-bold text-slate-500">Upload ID</span>
-                            </>
+                            <div className="flex flex-col items-center gap-3">
+                              <div className="flex gap-2">
+                                <button type="button" onClick={() => idCardInputRef.current?.click()} className="p-3 bg-white border border-slate-200 rounded-xl text-slate-600 hover:border-orange-500 hover:text-orange-500 transition-all shadow-sm">
+                                  <Upload className="w-5 h-5" />
+                                </button>
+                                <button type="button" onClick={() => idCardCameraRef.current?.click()} className="p-3 bg-white border border-slate-200 rounded-xl text-slate-600 hover:border-orange-500 hover:text-orange-500 transition-all shadow-sm">
+                                  <Camera className="w-5 h-5" />
+                                </button>
+                              </div>
+                              <span className="text-[10px] font-bold text-slate-500">Upload or Take Photo</span>
+                            </div>
                           )}
-                        </button>
+                        </div>
                       </div>
 
                       <div className="space-y-2">
                         <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Face Photo</span>
-                        <button 
-                          type="button"
-                          onClick={() => handleSimulatedUpload('facePhotoUrl')}
-                          className={`w-full aspect-video rounded-2xl border-2 border-dashed flex flex-col items-center justify-center gap-2 transition-all overflow-hidden relative group ${
-                            appForm.facePhotoUrl ? 'border-green-500 bg-green-50' : 'border-slate-200 bg-slate-50 hover:border-orange-500 hover:bg-orange-50'
-                          }`}
-                        >
+                        <input 
+                          type="file" 
+                          ref={facePhotoInputRef} 
+                          className="hidden" 
+                          accept="image/*" 
+                          onChange={(e) => handleFileChange(e, 'facePhotoUrl')} 
+                        />
+                        <input 
+                          type="file" 
+                          ref={facePhotoCameraRef} 
+                          className="hidden" 
+                          accept="image/*" 
+                          capture="user" 
+                          onChange={(e) => handleFileChange(e, 'facePhotoUrl')} 
+                        />
+                        <div className={`w-full aspect-video rounded-2xl border-2 border-dashed flex flex-col items-center justify-center gap-2 transition-all overflow-hidden relative group ${
+                          appForm.facePhotoUrl ? 'border-green-500 bg-green-50' : 'border-slate-200 bg-slate-50'
+                        }`}>
                           {appForm.facePhotoUrl ? (
                             <>
                               <img src={appForm.facePhotoUrl} alt="Face" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
-                              <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
-                                <Camera className="w-6 h-6 text-white" />
+                              <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 flex flex-col items-center justify-center gap-2 transition-opacity">
+                                <button type="button" onClick={() => facePhotoInputRef.current?.click()} className="px-3 py-1.5 bg-white text-slate-900 rounded-lg text-[10px] font-bold flex items-center gap-2 hover:bg-slate-100">
+                                  <Upload className="w-3 h-3" /> Change
+                                </button>
+                                <button type="button" onClick={() => facePhotoCameraRef.current?.click()} className="px-3 py-1.5 bg-white text-slate-900 rounded-lg text-[10px] font-bold flex items-center gap-2 hover:bg-slate-100">
+                                  <Camera className="w-3 h-3" /> Retake
+                                </button>
                               </div>
                             </>
                           ) : (
-                            <>
-                              <Camera className="w-6 h-6 text-slate-400" />
-                              <span className="text-[10px] font-bold text-slate-500">Take Photo</span>
-                            </>
+                            <div className="flex flex-col items-center gap-3">
+                              <div className="flex gap-2">
+                                <button type="button" onClick={() => facePhotoInputRef.current?.click()} className="p-3 bg-white border border-slate-200 rounded-xl text-slate-600 hover:border-orange-500 hover:text-orange-500 transition-all shadow-sm">
+                                  <Upload className="w-5 h-5" />
+                                </button>
+                                <button type="button" onClick={() => facePhotoCameraRef.current?.click()} className="p-3 bg-white border border-slate-200 rounded-xl text-slate-600 hover:border-orange-500 hover:text-orange-500 transition-all shadow-sm">
+                                  <Camera className="w-5 h-5" />
+                                </button>
+                              </div>
+                              <span className="text-[10px] font-bold text-slate-500">Upload or Take Photo</span>
+                            </div>
                           )}
-                        </button>
+                        </div>
                       </div>
                     </div>
                     <p className="text-[10px] text-slate-400 italic">
-                      * Click the boxes above to simulate document upload for this demo.
+                      * Please provide clear photos for faster verification.
                     </p>
                   </div>
                 </div>
@@ -805,6 +926,7 @@ export default function MechanicDashboard() {
             <Map 
               className="w-full h-full"
               center={profile?.location || { lat: 11.5853, lng: 122.7511 }}
+              trace={activeJob?.trace || []}
               markers={[
                 ...(profile?.location ? [{ id: 'me', lat: profile.location.lat, lng: profile.location.lng, type: 'mechanic' as const, label: 'You' }] : []),
                 ...(activeJob ? [{ id: 'job', lat: activeJob.location.lat, lng: activeJob.location.lng, type: 'rescue' as const, label: 'Rescue Location' }] : []),
